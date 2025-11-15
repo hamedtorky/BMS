@@ -1,260 +1,181 @@
-# BMS Server - MQTT Management System
+# BMS Server - Building Management System
 
-A complete Docker-based solution for managing BMS (Battery Management System) nodes with secure MQTT messaging and a web-based management panel.
+A complete IoT-based Building Management System for monitoring environmental sensors (temperature, humidity, etc.) using ESP32 nodes and a centralized Docker-based server.
+
+![Architecture](https://img.shields.io/badge/ESP32-MQTT-blue) ![Docker](https://img.shields.io/badge/Docker-Compose-blue) ![Node.js](https://img.shields.io/badge/Node.js-API-green) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-blue)
 
 ## Features
 
-- **Secure MQTT Broker** (Mosquitto) with TLS/SSL support
-- **RESTful API** (Node.js/Express) for node management
-- **PostgreSQL Database** for persistent storage
-- **Web Management Panel** for easy node administration
-- **Docker Compose** for easy deployment
-- **Authentication & Authorization** with JWT tokens
-- **Real-time MQTT messaging** between server and nodes
+### 🌡️ Sensor Monitoring
+- Real-time temperature, humidity, and dew point readings
+- Support for multiple ESP32 sensor nodes
+- WiFi signal strength monitoring
+- Auto-refresh monitoring dashboard
 
-## Architecture
+### 🔒 Secure Communication
+- TLS-encrypted MQTT connections (port 8883)
+- Certificate-based authentication
+- Access control lists (ACL)
+- User authentication for web interface
 
-```
-┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│  Web Panel  │────▶│  API Server  │────▶│  PostgreSQL │
-│  (Nginx)    │     │  (Node.js)   │     │  Database   │
-└─────────────┘     └──────┬───────┘     └─────────────┘
-                           │
-                           ▼
-                    ┌──────────────┐
-                    │   Mosquitto  │
-                    │ MQTT Broker  │
-                    └──────┬───────┘
-                           │
-                    ┌──────┴───────┐
-                    ▼              ▼
-              ┌──────────┐   ┌──────────┐
-              │  Node 1  │   │  Node N  │
-              └──────────┘   └──────────┘
-```
+### 📊 Web Dashboard
+- Node management interface
+- Live sensor monitoring with auto-refresh
+- Historical data viewing
+- Responsive design
 
-## Prerequisites
+### 🔌 API Integration
+- RESTful API for node management
+- **Public API** for sensor data (no auth required)
+- WebSocket support for real-time updates
+- JSON-based data exchange
 
-- Docker & Docker Compose
-- OpenSSL (for certificate generation)
+### 🚀 Easy Deployment
+- One-command setup script
+- Docker Compose orchestration
+- Auto-generated ESP32 Arduino code
+- Automatic TLS certificate generation
 
 ## Quick Start
 
-### 1. Setup
+### Prerequisites
+- Docker Desktop installed
+- 2GB RAM minimum
+- Network access for ESP32 nodes
 
-Run the setup script to create directories and generate SSL certificates:
+### Installation
 
-```bash
-chmod +x setup.sh
-./setup.sh
+1. **Clone the repository**
+   ```bash
+   git clone <your-repo-url> BMS-server
+   cd BMS-server
+   ```
+
+2. **Run setup script**
+   ```bash
+   ./setup.sh
+   ```
+
+3. **Access the system**
+   - Web Interface: `http://<SERVER_IP>:8080`
+   - Login with credentials you created during setup
+
+4. **Add sensor nodes**
+   - Click "Add Node" in the web interface
+   - Get auto-generated ESP32 code with TLS certificate
+   - Flash to your ESP32 device
+
+That's it! 🎉
+
+## System Architecture
+
+```
+ESP32 Sensors → MQTT/TLS → Mosquitto Broker → Node.js API → PostgreSQL
+                                 ↓
+                           Web Dashboard (Nginx)
 ```
 
-### 2. Configure Security (IMPORTANT!)
-
-Edit `docker-compose.yml` and change these values:
-
-- `POSTGRES_PASSWORD`
-- `DB_PASSWORD`
-- `JWT_SECRET`
-
-### 3. Start Services
-
-```bash
-docker-compose up -d
-```
-
-### 4. Configure MQTT Users
-
-Create MQTT users for the server and admin:
-
-```bash
-# Create admin user
-docker exec -it bms-mosquitto mosquitto_passwd -b /mosquitto/config/passwd admin your_admin_password
-
-# Create server user
-docker exec -it bms-mosquitto mosquitto_passwd -b /mosquitto/config/passwd server your_server_password
-
-# Restart mosquitto to apply changes
-docker-compose restart mosquitto
-```
-
-Update the server password in `docker-compose.yml` under the `api` service environment variables.
-
-### 5. Access the Web Panel
-
-Open your browser and navigate to:
-```
-http://localhost:8080
-```
-
-Default credentials:
-- Username: `admin`
-- Password: `admin123` (CHANGE THIS!)
-
-## Usage
-
-### Adding a Node
-
-1. Log in to the web panel
-2. Click "Add Node"
-3. Fill in the node details:
-   - **Node ID**: Unique identifier for the node
-   - **Name**: Human-readable name
-   - **Address**: Node's network address or location
-   - **Description**: Optional description
-4. Save the node and **copy the MQTT credentials** (they won't be shown again!)
-
-### Node Configuration
-
-Configure your BMS nodes with the following MQTT settings:
-
-- **Host**: `your-server-ip`
-- **Port**: `8883` (TLS) or `1883` (unencrypted)
-- **Username**: `node_<node_id>` (provided when creating node)
-- **Password**: (provided when creating node)
-- **Use TLS**: Yes (recommended)
-
-### MQTT Topics
-
-Nodes should use these topic patterns:
-
-- **Publishing data**: `bms/node/<node_id>/data`
-- **Publishing status**: `bms/node/<node_id>/status`
-- **Receiving commands**: `bms/node/<node_id>/command`
-
-### Example Node Code (Arduino/ESP32)
-
-```cpp
-#include <PubSubClient.h>
-#include <WiFiClientSecure.h>
-
-const char* mqtt_server = "your-server-ip";
-const int mqtt_port = 8883;
-const char* mqtt_user = "node_<your_node_id>";
-const char* mqtt_password = "your_password";
-
-WiFiClientSecure espClient;
-PubSubClient client(espClient);
-
-void setup() {
-  espClient.setInsecure(); // For self-signed certs
-  client.setServer(mqtt_server, mqtt_port);
-  client.setCallback(callback);
-}
-
-void loop() {
-  if (!client.connected()) {
-    reconnect();
-  }
-  client.loop();
-  
-  // Publish data
-  String topic = "bms/node/<your_node_id>/data";
-  String payload = "{\"voltage\":12.5,\"current\":2.3,\"temperature\":25.0}";
-  client.publish(topic.c_str(), payload.c_str());
-  
-  delay(5000);
-}
-
-void callback(char* topic, byte* payload, unsigned int length) {
-  // Handle incoming commands
-}
-
-void reconnect() {
-  while (!client.connected()) {
-    if (client.connect("ESP32Client", mqtt_user, mqtt_password)) {
-      String commandTopic = "bms/node/<your_node_id>/command";
-      client.subscribe(commandTopic.c_str());
-    } else {
-      delay(5000);
-    }
-  }
-}
-```
+### Components
+- **MQTT Broker:** Eclipse Mosquitto with TLS
+- **Database:** PostgreSQL 15
+- **API Server:** Node.js with Express
+- **Web Frontend:** Vanilla JS + HTML/CSS
+- **Sensor Nodes:** ESP32 with Arduino
 
 ## API Endpoints
 
-### Authentication
-- `POST /api/auth/login` - Login and get JWT token
+### Public API (No Authentication)
+```bash
+# Get all active sensors
+curl http://<SERVER_IP>:3000/api/public/sensors
 
-### Nodes
-- `GET /api/nodes` - Get all nodes
-- `GET /api/nodes/:nodeId` - Get specific node
+# Get specific sensor data
+curl http://<SERVER_IP>:3000/api/public/sensors/node_1
+```
+
+### Authenticated API
+- `GET /api/nodes` - List all nodes
 - `POST /api/nodes` - Create new node
-- `PUT /api/nodes/:nodeId` - Update node
-- `DELETE /api/nodes/:nodeId` - Delete node
-- `GET /api/nodes/:nodeId/data` - Get node data history
-- `POST /api/nodes/:nodeId/command` - Send command to node
+- `GET /api/nodes/:id/data` - Get sensor data
+- More in [DEPLOYMENT.md](DEPLOYMENT.md)
 
-### Health
-- `GET /health` - Check API and MQTT status
+## Documentation
 
-## Security Considerations
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete deployment guide
+  - Manual setup instructions
+  - Troubleshooting
+  - Docker commands
+  - Security notes
+  - Backup procedures
 
-1. **Change default passwords** immediately after setup
-2. **Use strong passwords** for MQTT and database
-3. **Update JWT secret** in production
-4. **Enable certificate validation** for production (set `rejectUnauthorized: true`)
-5. **Use proper CA-signed certificates** instead of self-signed
-6. **Enable firewall rules** to restrict access
-7. **Use HTTPS** for the web panel in production
-8. **Regularly update** Docker images
+- **[examples/](examples/)** - ESP32 example sketches
+  - TLS version
+  - Simple version (no TLS)
+  - SHT10 sensor integration
 
-## Ports
+## Hardware Requirements
 
-- `1883` - MQTT (unencrypted)
-- `8883` - MQTT (TLS)
-- `9001` - MQTT WebSockets
-- `3000` - API Server
-- `5432` - PostgreSQL
-- `8080` - Web Panel
+### Server
+- Any computer with Docker support
+- 2GB RAM minimum
+- Network connectivity
 
-## Troubleshooting
+### ESP32 Nodes
+- ESP32-S3 or compatible
+- SHT10/SHT11 temperature & humidity sensor
+- WiFi connectivity
 
-### MQTT Connection Failed
-- Check if mosquitto is running: `docker ps`
-- View logs: `docker logs bms-mosquitto`
-- Verify credentials: Check password file creation
-
-### Can't Login to Web Panel
-- Check API logs: `docker logs bms-api`
-- Verify database connection
-- Check if default user was created
-
-### Node Can't Connect
-- Verify MQTT credentials
-- Check if node user was created in MQTT
-- Test connection with MQTT client (e.g., MQTT Explorer)
-- Check certificate settings
+### Wiring Example (SHT10)
+```
+SHT10 DATA → ESP32 GPIO 10
+SHT10 SCK  → ESP32 GPIO 11
+SHT10 VCC  → 3.3V
+SHT10 GND  → GND
+```
 
 ## Development
 
-To run in development mode:
+### Project Structure
+```
+BMS-server/
+├── api/              # Node.js API server
+├── web/              # Web frontend
+├── mosquitto/        # MQTT broker config
+│   ├── config/       # Configuration files
+│   ├── certs/        # TLS certificates
+│   └── data/         # Persistent data
+├── examples/         # ESP32 example code
+├── docker-compose.yml
+├── setup.sh          # Automated setup
+└── DEPLOYMENT.md     # Deployment guide
+```
 
+### Building from Source
 ```bash
-# API with auto-reload
-cd api
-npm install
-npm run dev
+# Build all containers
+docker-compose build
+
+# Start services
+docker-compose up -d
 
 # View logs
 docker-compose logs -f
 ```
 
-## Backup
+## Contributing
 
-Backup the PostgreSQL database:
-
-```bash
-docker exec bms-postgres pg_dump -U bms_user bms_db > backup.sql
-```
-
-Restore:
-
-```bash
-cat backup.sql | docker exec -i bms-postgres psql -U bms_user bms_db
-```
+Contributions welcome! Please feel free to submit pull requests or open issues.
 
 ## License
 
-MIT
+See LICENSE file for details.
+
+## Support
+
+- Check [DEPLOYMENT.md](DEPLOYMENT.md) for troubleshooting
+- Review Docker logs: `docker-compose logs`
+- Check ESP32 Serial Monitor output (115200 baud)
+
+---
+
+**Made with ❤️ for IoT and Building Automation**
