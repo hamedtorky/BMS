@@ -83,10 +83,19 @@
                         <textarea id="node-description" rows="3"></textarea>
                     </div>
                     <div id="mqtt-credentials" class="mqtt-credentials hidden">
-                        <h3>MQTT Credentials</h3>
+                        <h3>Node Created Successfully!</h3>
                         <p><strong>Username:</strong> <span id="mqtt-username"></span></p>
                         <p><strong>Password:</strong> <span id="mqtt-password"></span></p>
+                        <button type="button" id="show-esp32-code-btn" class="btn-primary" style="margin-top: 15px;">Show ESP32 Code</button>
                         <p class="info-text">Save these credentials - they won't be shown again!</p>
+                    </div>
+                    <div id="esp32-code-section" class="esp32-code-section hidden">
+                        <h3>ESP32 Arduino Code</h3>
+                        <p>Copy this code to your ESP32 Arduino sketch:</p>
+                        <div class="code-actions">
+                            <button type="button" id="copy-code-btn" class="btn-secondary">Copy to Clipboard</button>
+                        </div>
+                        <pre id="esp32-code" class="code-block"></pre>
                     </div>
                     <div class="modal-actions">
                         <button type="button" id="cancel-btn" class="btn-secondary">Cancel</button>

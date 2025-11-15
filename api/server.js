@@ -290,6 +290,55 @@ app.post('/api/nodes/:nodeId/command', authenticateToken, async (req, res) => {
   }
 });
 
+// Get CA certificate
+app.get('/api/ca-cert', authenticateToken, (req, res) => {
+  try {
+    const certsPath = path.join(__dirname, 'certs');
+    const caCert = fs.readFileSync(path.join(certsPath, 'ca.crt'), 'utf8');
+    res.json({ certificate: caCert });
+  } catch (error) {
+    console.error('Error reading CA certificate:', error);
+    res.status(500).json({ error: 'Failed to read CA certificate' });
+  }
+});
+
+// Generate ESP32 code for a node
+app.get('/api/nodes/:nodeId/esp32-code', authenticateToken, async (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    
+    // Get node details
+    const nodeResult = await pool.query(
+      'SELECT node_id, name, mqtt_username, mqtt_password FROM nodes WHERE node_id = $1',
+      [nodeId]
+    );
+    
+    if (nodeResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Node not found' });
+    }
+    
+    const node = nodeResult.rows[0];
+    
+    // Read CA certificate
+    const certsPath = path.join(__dirname, 'certs');
+    const caCert = fs.readFileSync(path.join(certsPath, 'ca.crt'), 'utf8');
+    
+    // Get server IP from request
+    const serverIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'YOUR_SERVER_IP';
+    
+    res.json({
+      node_id: node.node_id,
+      mqtt_username: node.mqtt_username,
+      mqtt_password: node.mqtt_password,
+      ca_certificate: caCert,
+      server_ip: serverIp
+    });
+  } catch (error) {
+    console.error('Error generating ESP32 code:', error);
+    res.status(500).json({ error: 'Failed to generate ESP32 code' });
+  }
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ 

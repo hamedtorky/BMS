@@ -309,6 +309,7 @@ void publishSensorData() {
   
   Serial.print("Dew Point: ");
   Serial.print(dewPoint, 2);
+  
   Serial.println(" °C");
   
   // Create JSON payload
