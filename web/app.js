@@ -19,6 +19,10 @@ const closeModal = document.getElementById('close-modal');
 const cancelBtn = document.getElementById('cancel-btn');
 const detailsModal = document.getElementById('details-modal');
 const closeDetails = document.getElementById('close-details');
+const monitorContainer = document.getElementById('monitor-container');
+const refreshMonitorBtn = document.getElementById('refresh-monitor-btn');
+const autoRefreshCheckbox = document.getElementById('auto-refresh');
+let monitorInterval = null;
 
 // Initialize
 if (authToken) {
@@ -37,6 +41,13 @@ nodeForm.addEventListener('submit', handleNodeSubmit);
 closeModal.addEventListener('click', closeNodeModal);
 cancelBtn.addEventListener('click', closeNodeModal);
 closeDetails.addEventListener('click', () => detailsModal.classList.add('hidden'));
+refreshMonitorBtn.addEventListener('click', loadMonitorData);
+autoRefreshCheckbox.addEventListener('change', toggleAutoRefresh);
+
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
 
 // Authentication
 async function handleLogin(e) {
@@ -317,4 +328,148 @@ function displayNodeDetails(node, dataHistory) {
     `;
 
     detailsModal.classList.remove('hidden');
+}
+
+// Tab Management
+function switchTab(tabName) {
+    // Update button states
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tabName);
+    });
+    
+    // Update content visibility
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    document.getElementById(`${tabName}-tab`).classList.add('active');
+    
+    // Load appropriate data
+    if (tabName === 'monitor') {
+        loadMonitorData();
+        if (autoRefreshCheckbox.checked) {
+            startAutoRefresh();
+        }
+    } else {
+        stopAutoRefresh();
+    }
+}
+
+// Monitor Functions
+async function loadMonitorData() {
+    try {
+        const response = await fetch(`${API_BASE}/nodes`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to load nodes');
+        }
+
+        const nodes = await response.json();
+        const activeNodes = nodes.filter(n => n.status === 'active');
+        
+        // Fetch latest data for each active node
+        const nodeDataPromises = activeNodes.map(async node => {
+            const dataRes = await fetch(`${API_BASE}/nodes/${node.node_id}/data?limit=1`, {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+            const data = await dataRes.json();
+            return { ...node, latestData: data[0] };
+        });
+        
+        const nodesWithData = await Promise.all(nodeDataPromises);
+        displayMonitorData(nodesWithData);
+    } catch (error) {
+        console.error('Error loading monitor data:', error);
+    }
+}
+
+function displayMonitorData(nodes) {
+    monitorContainer.innerHTML = '';
+
+    if (nodes.length === 0) {
+        monitorContainer.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #666;">No active nodes found.</p>';
+        return;
+    }
+
+    nodes.forEach(node => {
+        const card = createMonitorCard(node);
+        monitorContainer.appendChild(card);
+    });
+}
+
+function createMonitorCard(node) {
+    const card = document.createElement('div');
+    card.className = 'monitor-card';
+
+    let sensorDataHTML = '<p style="color: #999;">No data available</p>';
+    
+    if (node.latestData && node.latestData.data) {
+        const data = node.latestData.data;
+        const timestamp = new Date(node.latestData.received_at).toLocaleString();
+        
+        sensorDataHTML = `
+            <div class="sensor-grid">
+                ${data.temperature !== undefined ? `
+                    <div class="sensor-value">
+                        <div class="sensor-label">Temperature</div>
+                        <div class="sensor-reading">${data.temperature}°C</div>
+                    </div>
+                ` : ''}
+                ${data.humidity !== undefined ? `
+                    <div class="sensor-value">
+                        <div class="sensor-label">Humidity</div>
+                        <div class="sensor-reading">${data.humidity}%</div>
+                    </div>
+                ` : ''}
+                ${data.dewpoint !== undefined ? `
+                    <div class="sensor-value">
+                        <div class="sensor-label">Dew Point</div>
+                        <div class="sensor-reading">${data.dewpoint}°C</div>
+                    </div>
+                ` : ''}
+                ${data.rssi !== undefined ? `
+                    <div class="sensor-value">
+                        <div class="sensor-label">Signal</div>
+                        <div class="sensor-reading">${data.rssi} dBm</div>
+                    </div>
+                ` : ''}
+            </div>
+            <div class="monitor-timestamp">Updated: ${timestamp}</div>
+        `;
+    }
+
+    card.innerHTML = `
+        <div class="monitor-header">
+            <h3>${node.name}</h3>
+            <span class="node-status status-active">●</span>
+        </div>
+        <div class="monitor-info">
+            <p><strong>ID:</strong> ${node.node_id}</p>
+            <p><strong>Location:</strong> ${node.address}</p>
+        </div>
+        ${sensorDataHTML}
+    `;
+
+    return card;
+}
+
+function toggleAutoRefresh() {
+    if (autoRefreshCheckbox.checked) {
+        startAutoRefresh();
+    } else {
+        stopAutoRefresh();
+    }
+}
+
+function startAutoRefresh() {
+    stopAutoRefresh(); // Clear any existing interval
+    monitorInterval = setInterval(loadMonitorData, 10000); // Refresh every 10 seconds
+}
+
+function stopAutoRefresh() {
+    if (monitorInterval) {
+        clearInterval(monitorInterval);
+        monitorInterval = null;
+    }
 }

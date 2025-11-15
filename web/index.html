@@ -32,12 +32,29 @@
             </header>
 
             <main>
-                <div class="toolbar">
-                    <button id="add-node-btn" class="btn-primary">+ Add Node</button>
-                    <button id="refresh-btn" class="btn-secondary">Refresh</button>
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="nodes">Nodes</button>
+                    <button class="tab-btn" data-tab="monitor">Monitor</button>
                 </div>
 
-                <div id="nodes-container" class="nodes-grid"></div>
+                <div id="nodes-tab" class="tab-content active">
+                    <div class="toolbar">
+                        <button id="add-node-btn" class="btn-primary">+ Add Node</button>
+                        <button id="refresh-btn" class="btn-secondary">Refresh</button>
+                    </div>
+                    <div id="nodes-container" class="nodes-grid"></div>
+                </div>
+
+                <div id="monitor-tab" class="tab-content">
+                    <div class="toolbar">
+                        <button id="refresh-monitor-btn" class="btn-secondary">Refresh</button>
+                        <label>
+                            <input type="checkbox" id="auto-refresh" checked>
+                            Auto-refresh (10s)
+                        </label>
+                    </div>
+                    <div id="monitor-container" class="monitor-grid"></div>
+                </div>
             </main>
         </div>
 
