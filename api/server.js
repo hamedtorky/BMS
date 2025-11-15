@@ -339,6 +339,93 @@ app.get('/api/nodes/:nodeId/esp32-code', authenticateToken, async (req, res) => 
   }
 });
 
+// Public API: Get all sensors with latest data (no auth required)
+app.get('/api/public/sensors', async (req, res) => {
+  try {
+    // Get all active nodes
+    const nodesResult = await pool.query(
+      'SELECT node_id, name, address, status, last_seen FROM nodes WHERE status = $1 ORDER BY name',
+      ['active']
+    );
+
+    if (nodesResult.rows.length === 0) {
+      return res.json({ sensors: [], count: 0, timestamp: new Date().toISOString() });
+    }
+
+    // Fetch latest data for each node
+    const sensorsData = await Promise.all(
+      nodesResult.rows.map(async (node) => {
+        const dataResult = await pool.query(
+          'SELECT data, received_at FROM node_data WHERE node_id = $1 ORDER BY received_at DESC LIMIT 1',
+          [node.node_id]
+        );
+
+        const latestData = dataResult.rows[0];
+        return {
+          id: node.node_id,
+          name: node.name,
+          location: node.address,
+          status: node.status,
+          last_seen: node.last_seen,
+          data: latestData ? latestData.data : null,
+          data_timestamp: latestData ? latestData.received_at : null
+        };
+      })
+    );
+
+    res.json({
+      sensors: sensorsData,
+      count: sensorsData.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error fetching public sensor data:', error);
+    res.status(500).json({ error: 'Failed to fetch sensor data' });
+  }
+});
+
+// Public API: Get specific sensor data (no auth required)
+app.get('/api/public/sensors/:nodeId', async (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    const limit = parseInt(req.query.limit) || 1;
+
+    // Get node info
+    const nodeResult = await pool.query(
+      'SELECT node_id, name, address, status, last_seen FROM nodes WHERE node_id = $1',
+      [nodeId]
+    );
+
+    if (nodeResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Sensor not found' });
+    }
+
+    const node = nodeResult.rows[0];
+
+    // Get latest data
+    const dataResult = await pool.query(
+      'SELECT data, received_at FROM node_data WHERE node_id = $1 ORDER BY received_at DESC LIMIT $2',
+      [nodeId, limit]
+    );
+
+    res.json({
+      id: node.node_id,
+      name: node.name,
+      location: node.address,
+      status: node.status,
+      last_seen: node.last_seen,
+      data_history: dataResult.rows.map(row => ({
+        data: row.data,
+        timestamp: row.received_at
+      })),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error fetching sensor data:', error);
+    res.status(500).json({ error: 'Failed to fetch sensor data' });
+  }
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ 
