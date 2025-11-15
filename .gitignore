@@ -31,3 +31,4 @@ Thumbs.db
 
 # Logs
 *.log
+mosquitto/config/passwd.backup.*
