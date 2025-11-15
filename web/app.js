@@ -22,7 +22,10 @@ const closeDetails = document.getElementById('close-details');
 const monitorContainer = document.getElementById('monitor-container');
 const refreshMonitorBtn = document.getElementById('refresh-monitor-btn');
 const autoRefreshCheckbox = document.getElementById('auto-refresh');
+const showChartsCheckbox = document.getElementById('show-charts');
 let monitorInterval = null;
+let temperatureChart = null;
+let humidityChart = null;
 
 // Initialize
 if (authToken) {
@@ -43,6 +46,7 @@ cancelBtn.addEventListener('click', closeNodeModal);
 closeDetails.addEventListener('click', () => detailsModal.classList.add('hidden'));
 refreshMonitorBtn.addEventListener('click', loadMonitorData);
 autoRefreshCheckbox.addEventListener('change', toggleAutoRefresh);
+showChartsCheckbox.addEventListener('change', toggleCharts);
 
 // Tab switching
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -351,6 +355,7 @@ function switchTab(tabName) {
     
     // Load appropriate data
     if (tabName === 'monitor') {
+        initializeCharts();
         loadMonitorData();
         if (autoRefreshCheckbox.checked) {
             startAutoRefresh();
@@ -385,6 +390,11 @@ async function loadMonitorData() {
         
         const nodesWithData = await Promise.all(nodeDataPromises);
         displayMonitorData(nodesWithData);
+        
+        // Update charts if they're visible
+        if (showChartsCheckbox.checked) {
+            updateCharts();
+        }
     } catch (error) {
         console.error('Error loading monitor data:', error);
     }
@@ -508,6 +518,186 @@ async function showEsp32Code(nodeId) {
         };
     } catch (error) {
         alert('Error generating ESP32 code: ' + error.message);
+    }
+}
+
+// Charts Management
+function initializeCharts() {
+    if (temperatureChart || humidityChart) return; // Already initialized
+    
+    const tempCtx = document.getElementById('temperature-chart').getContext('2d');
+    const humCtx = document.getElementById('humidity-chart').getContext('2d');
+    
+    temperatureChart = new Chart(tempCtx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: []
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    position: 'top'
+                },
+                title: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    title: {
+                        display: true,
+                        text: 'Temperature (°C)'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Time'
+                    }
+                }
+            }
+        }
+    });
+    
+    humidityChart = new Chart(humCtx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: []
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    position: 'top'
+                },
+                title: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    title: {
+                        display: true,
+                        text: 'Humidity (%)'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Time'
+                    }
+                }
+            }
+        }
+    });
+}
+
+async function updateCharts() {
+    if (!temperatureChart || !humidityChart) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/nodes`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        
+        if (!response.ok) return;
+        
+        const nodes = await response.json();
+        const activeNodes = nodes.filter(n => n.status === 'active');
+        
+        // Fetch historical data for each node (last 20 points)
+        const chartDataPromises = activeNodes.map(async node => {
+            const dataRes = await fetch(`${API_BASE}/nodes/${node.node_id}/data?limit=20`, {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+            const data = await dataRes.json();
+            return { node, data: data.reverse() }; // Reverse to get chronological order
+        });
+        
+        const nodesData = await Promise.all(chartDataPromises);
+        
+        // Update temperature chart
+        temperatureChart.data.datasets = nodesData.map(({ node, data }) => ({
+            label: node.name,
+            data: data.map(d => d.data.temperature),
+            borderColor: getNodeColor(node.node_id),
+            backgroundColor: getNodeColor(node.node_id, 0.1),
+            tension: 0.4
+        }));
+        
+        // Use timestamps from first node for labels
+        if (nodesData.length > 0 && nodesData[0].data.length > 0) {
+            temperatureChart.data.labels = nodesData[0].data.map(d => 
+                new Date(d.received_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            );
+        }
+        
+        // Update humidity chart
+        humidityChart.data.datasets = nodesData.map(({ node, data }) => ({
+            label: node.name,
+            data: data.map(d => d.data.humidity),
+            borderColor: getNodeColor(node.node_id),
+            backgroundColor: getNodeColor(node.node_id, 0.1),
+            tension: 0.4
+        }));
+        
+        if (nodesData.length > 0 && nodesData[0].data.length > 0) {
+            humidityChart.data.labels = nodesData[0].data.map(d => 
+                new Date(d.received_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            );
+        }
+        
+        temperatureChart.update();
+        humidityChart.update();
+    } catch (error) {
+        console.error('Error updating charts:', error);
+    }
+}
+
+function getNodeColor(nodeId, alpha = 1) {
+    const colors = [
+        `rgba(54, 162, 235, ${alpha})`,   // Blue
+        `rgba(255, 99, 132, ${alpha})`,   // Red
+        `rgba(75, 192, 192, ${alpha})`,   // Teal
+        `rgba(255, 159, 64, ${alpha})`,   // Orange
+        `rgba(153, 102, 255, ${alpha})`,  // Purple
+        `rgba(255, 205, 86, ${alpha})`    // Yellow
+    ];
+    
+    // Simple hash function to assign consistent colors
+    let hash = 0;
+    for (let i = 0; i < nodeId.length; i++) {
+        hash = nodeId.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+}
+
+function toggleCharts() {
+    const chartsSection = document.getElementById('charts-section');
+    if (showChartsCheckbox.checked) {
+        chartsSection.style.display = 'grid';
+        if (!temperatureChart || !humidityChart) {
+            initializeCharts();
+        }
+        updateCharts();
+    } else {
+        chartsSection.style.display = 'none';
     }
 }
 
