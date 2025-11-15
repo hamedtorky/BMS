@@ -31,8 +31,8 @@ const connectMQTT = () => {
   const options = {
     host: process.env.MQTT_HOST || 'localhost',
     port: parseInt(process.env.MQTT_PORT) || 8883,
-    username: 'server',
-    password: 'server_password',
+    username: process.env.MQTT_USERNAME || 'server',
+    password: process.env.MQTT_PASSWORD || 'server_password',
     protocol: process.env.MQTT_USE_TLS === 'true' ? 'mqtts' : 'mqtt',
   };
 
