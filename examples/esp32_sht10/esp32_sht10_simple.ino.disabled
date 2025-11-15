@@ -1,0 +1,203 @@
+/*
+ * ESP32-S3 BMS Node with SHT10 - Simplified Version (No TLS)
+ * Use this version for initial testing
+ */
+
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include <ArduinoJson.h>
+#include <SHT1x-ESP.h>
+
+// WiFi credentials
+const char* WIFI_SSID = "Telia-C229E4";
+const char* WIFI_PASSWORD = "8UXJVPSBBR43QB";
+
+// MQTT Broker settings (NO TLS)
+const char* MQTT_SERVER = "192.168.1.172";
+const int MQTT_PORT = 1883;  // Non-TLS port
+const char* MQTT_USERNAME = "node_1";
+const char* MQTT_PASSWORD = "ssdmeljmkth";
+const char* NODE_ID = "1";
+
+// SHT10 sensor pins
+#define SHT10_DATA_PIN 10
+#define SHT10_SCK_PIN  11
+
+// Publish interval
+const unsigned long PUBLISH_INTERVAL = 30000;
+
+// Objects
+SHT1x sht10(SHT10_DATA_PIN, SHT10_SCK_PIN);
+WiFiClient espClient;
+PubSubClient mqttClient(espClient);
+
+// Topics
+String dataTopic;
+String statusTopic;
+String commandTopic;
+
+// Timing
+unsigned long lastPublish = 0;
+
+void setup() {
+  Serial.begin(115200);
+  delay(2000);
+  
+  Serial.println("\n\n=================================");
+  Serial.println("ESP32-S3 BMS Node - Simple Test");
+  Serial.println("=================================\n");
+  
+  Serial.print("Free heap: ");
+  Serial.println(ESP.getFreeHeap());
+  
+  // Initialize topics
+  String topicPrefix = String("node_") + NODE_ID;
+  dataTopic = String("bms/node/") + topicPrefix + "/data";
+  statusTopic = String("bms/node/") + topicPrefix + "/status";
+  commandTopic = String("bms/node/") + topicPrefix + "/command";
+  
+  Serial.println("Topics initialized");
+  
+  // Connect to WiFi
+  connectWiFi();
+  
+  // Setup MQTT
+  Serial.println("Setting up MQTT...");
+  mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
+  mqttClient.setCallback(mqttCallback);
+  mqttClient.setBufferSize(256);
+  
+  Serial.println("Connecting to MQTT...");
+  connectMQTT();
+  
+  publishStatus("online");
+  Serial.println("Setup complete!\n");
+}
+
+void loop() {
+  if (!mqttClient.connected()) {
+    connectMQTT();
+  }
+  mqttClient.loop();
+  
+  unsigned long now = millis();
+  if (now - lastPublish >= PUBLISH_INTERVAL) {
+    lastPublish = now;
+    publishSensorData();
+  }
+  
+  delay(100);
+}
+
+void connectWiFi() {
+  Serial.print("Connecting to WiFi: ");
+  Serial.println(WIFI_SSID);
+  
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
+    delay(500);
+    Serial.print(".");
+    attempts++;
+    yield();
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nWiFi connected!");
+    Serial.print("IP: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("\nWiFi failed!");
+    delay(5000);
+    ESP.restart();
+  }
+}
+
+void connectMQTT() {
+  int attempts = 0;
+  while (!mqttClient.connected() && attempts < 3) {
+    Serial.print("MQTT connect...");
+    
+    String clientId = "ESP32-" + String(NODE_ID);
+    
+    if (mqttClient.connect(clientId.c_str(), MQTT_USERNAME, MQTT_PASSWORD)) {
+      Serial.println(" OK!");
+      mqttClient.subscribe(commandTopic.c_str());
+      return;
+    } else {
+      Serial.print(" failed, rc=");
+      Serial.println(mqttClient.state());
+      attempts++;
+      delay(2000);
+    }
+  }
+}
+
+void mqttCallback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message: ");
+  String message = "";
+  for (unsigned int i = 0; i < length; i++) {
+    message += (char)payload[i];
+  }
+  Serial.println(message);
+  
+  DynamicJsonDocument doc(256);
+  DeserializationError error = deserializeJson(doc, message);
+  
+  if (!error) {
+    const char* cmd = doc["command"];
+    if (cmd && strcmp(cmd, "read") == 0) {
+      publishSensorData();
+    }
+  }
+}
+
+void publishSensorData() {
+  Serial.println("Reading sensor...");
+  
+  float temperature = sht10.readTemperatureC();
+  float humidity = sht10.readHumidity();
+  
+  if (isnan(temperature) || isnan(humidity)) {
+    Serial.println("Sensor read failed!");
+    return;
+  }
+  
+  Serial.print("Temp: ");
+  Serial.print(temperature, 1);
+  Serial.print("°C, Humidity: ");
+  Serial.print(humidity, 1);
+  Serial.println("%");
+  
+  DynamicJsonDocument doc(256);
+  doc["node_id"] = NODE_ID;
+  doc["timestamp"] = millis();
+  doc["temperature"] = round(temperature * 10) / 10.0;
+  doc["humidity"] = round(humidity * 10) / 10.0;
+  doc["rssi"] = WiFi.RSSI();
+  
+  String payload;
+  serializeJson(doc, payload);
+  
+  if (mqttClient.publish(dataTopic.c_str(), payload.c_str())) {
+    Serial.println("Published!");
+  } else {
+    Serial.println("Publish failed!");
+  }
+}
+
+void publishStatus(const char* status) {
+  DynamicJsonDocument doc(128);
+  doc["node_id"] = NODE_ID;
+  doc["status"] = status;
+  doc["ip"] = WiFi.localIP().toString();
+  
+  String payload;
+  serializeJson(doc, payload);
+  mqttClient.publish(statusTopic.c_str(), payload.c_str(), true);
+  
+  Serial.print("Status: ");
+  Serial.println(status);
+}
