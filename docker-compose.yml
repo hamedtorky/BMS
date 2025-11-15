@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: bms-mosquitto
+    ports:
+      - "1883:1883"  # MQTT
+      - "8883:8883"  # MQTT over TLS
+      - "9001:9001"  # WebSockets
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+      - ./mosquitto/certs:/mosquitto/certs
+    restart: unless-stopped
+    networks:
+      - bms-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: bms-postgres
+    environment:
+      POSTGRES_DB: bms_db
+      POSTGRES_USER: bms_user
+      POSTGRES_PASSWORD: bms_password_change_me
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - bms-network
+
+  api:
+    build: ./api
+    container_name: bms-api
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=bms_db
+      - DB_USER=bms_user
+      - DB_PASSWORD=bms_password_change_me
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=8883
+      - MQTT_USE_TLS=true
+      - JWT_SECRET=change_this_secret_key
+    depends_on:
+      - postgres
+      - mosquitto
+    volumes:
+      - ./mosquitto/certs:/app/certs:ro
+    restart: unless-stopped
+    networks:
+      - bms-network
+
+  web:
+    build: ./web
+    container_name: bms-web
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - bms-network
+
+volumes:
+  postgres-data:
+
+networks:
+  bms-network:
+    driver: bridge

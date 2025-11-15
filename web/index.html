@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BMS Node Management Panel</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Login Screen -->
+        <div id="login-screen" class="screen">
+            <div class="login-container">
+                <h1>BMS Management Panel</h1>
+                <form id="login-form">
+                    <input type="text" id="username" placeholder="Username" required>
+                    <input type="password" id="password" placeholder="Password" required>
+                    <button type="submit">Login</button>
+                </form>
+                <div id="login-error" class="error-message"></div>
+            </div>
+        </div>
+
+        <!-- Main Panel -->
+        <div id="main-screen" class="screen hidden">
+            <header>
+                <h1>BMS Node Management</h1>
+                <div class="header-actions">
+                    <span id="user-info"></span>
+                    <button id="logout-btn" class="btn-secondary">Logout</button>
+                </div>
+            </header>
+
+            <main>
+                <div class="toolbar">
+                    <button id="add-node-btn" class="btn-primary">+ Add Node</button>
+                    <button id="refresh-btn" class="btn-secondary">Refresh</button>
+                </div>
+
+                <div id="nodes-container" class="nodes-grid"></div>
+            </main>
+        </div>
+
+        <!-- Add/Edit Node Modal -->
+        <div id="node-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="modal-title">Add New Node</h2>
+                    <button class="close-btn" id="close-modal">&times;</button>
+                </div>
+                <form id="node-form">
+                    <div class="form-group">
+                        <label for="node-id">Node ID *</label>
+                        <input type="text" id="node-id" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="node-name">Name *</label>
+                        <input type="text" id="node-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="node-address">Address *</label>
+                        <input type="text" id="node-address" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="node-description">Description</label>
+                        <textarea id="node-description" rows="3"></textarea>
+                    </div>
+                    <div id="mqtt-credentials" class="mqtt-credentials hidden">
+                        <h3>MQTT Credentials</h3>
+                        <p><strong>Username:</strong> <span id="mqtt-username"></span></p>
+                        <p><strong>Password:</strong> <span id="mqtt-password"></span></p>
+                        <p class="info-text">Save these credentials - they won't be shown again!</p>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" id="cancel-btn" class="btn-secondary">Cancel</button>
+                        <button type="submit" class="btn-primary">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Node Details Modal -->
+        <div id="details-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Node Details</h2>
+                    <button class="close-btn" id="close-details">&times;</button>
+                </div>
+                <div id="node-details-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

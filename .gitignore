@@ -1,0 +1,33 @@
+# Node modules
+node_modules/
+npm-debug.log*
+
+# Environment variables
+.env
+.env.local
+
+# Mosquitto data
+mosquitto/data/
+mosquitto/log/
+mosquitto/certs/*.key
+mosquitto/certs/*.crt
+mosquitto/certs/*.srl
+mosquitto/config/passwd
+
+# Database
+*.sql
+postgres-data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
