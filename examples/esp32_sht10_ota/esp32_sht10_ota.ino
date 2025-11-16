@@ -20,7 +20,7 @@
 #include <SHT1x-ESP.h>
 
 // Firmware version
-#define FIRMWARE_VERSION "1.0.0"
+#define FIRMWARE_VERSION "1.1.0"
 
 // ===========================
 // TLS CERTIFICATE

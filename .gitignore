@@ -32,3 +32,9 @@ Thumbs.db
 # Logs
 *.log
 mosquitto/config/passwd.backup.*
+
+# Arduino build artifacts
+examples/**/build/
+
+# Uploaded firmware binaries (keep .gitkeep)
+firmware/*.bin
