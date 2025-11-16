@@ -52,13 +52,13 @@ xyxIZbUhchj+LB0igQFa3RtEP3ldwm34+Y54
 // ===========================
 // CONFIGURATION
 // ===========================
-const char* WIFI_SSID = "YOUR_WIFI_SSID";
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
+const char* WIFI_SSID = "Telia-C229E4";
+const char* WIFI_PASSWORD = "8UXJVPSBBR43QB";
 
 const char* MQTT_SERVER = "192.168.1.172";
 const int MQTT_PORT = 8883;
 const char* MQTT_USERNAME = "node_1";
-const char* MQTT_PASSWORD = "your_password";
+const char* MQTT_PASSWORD = "ssdmeljmkth";
 const char* NODE_ID = "node_1";
 
 #define SHT10_DATA_PIN 10
@@ -89,10 +89,9 @@ void setup() {
   Serial.println("=================================\n");
   
   // Initialize topics
-  String topicPrefix = String("node_") + NODE_ID;
-  dataTopic = String("bms/node/") + topicPrefix + "/data";
-  statusTopic = String("bms/node/") + topicPrefix + "/status";
-  commandTopic = String("bms/node/") + topicPrefix + "/command";
+  dataTopic = String("bms/node/") + NODE_ID + "/data";
+  statusTopic = String("bms/node/") + NODE_ID + "/status";
+  commandTopic = String("bms/node/") + NODE_ID + "/command";
   
   connectWiFi();
   
