@@ -17,7 +17,7 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+if ! command -v docker compose &> /dev/null && ! docker compose version &> /dev/null; then
     echo "Error: Docker Compose is not installed!"
     exit 1
 fi
@@ -104,8 +104,8 @@ echo ""
 
 echo ""
 echo "Building and starting services..."
-docker-compose build
-docker-compose up -d
+docker compose build
+docker compose up -d
 
 echo "Waiting for services to start..."
 sleep 10
@@ -161,9 +161,9 @@ echo "  1. Login to the web interface"
 echo "  2. Click 'Add Node'"
 echo "  3. Click 'Show ESP32 Code' to get the Arduino sketch"
 echo ""
-echo "To stop: docker-compose down"
-echo "To restart: docker-compose up -d"
-echo "To view logs: docker-compose logs -f"
+echo "To stop: docker compose down"
+echo "To restart: docker compose up -d"
+echo "To view logs: docker compose logs -f"
 echo ""
 echo "Testing:"
 echo "  Run OTA unit tests: cd examples/esp32_sht10_ota && pio test -e native"
