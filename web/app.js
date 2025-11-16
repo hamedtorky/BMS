@@ -710,15 +710,27 @@ function generateEsp32Code(data) {
     const serverIp = window.location.hostname;
     
     return `/*
- * ESP32-S3 BMS Node with SHT10 Temperature & Humidity Sensor
+ * ESP32-S3 BMS Node with SHT10 and OTA (Over-The-Air) Update Support
  * Auto-generated configuration for node: ${data.node_id}
+ * 
+ * Required Libraries:
+ * - WiFi (built-in)
+ * - HTTPUpdate (built-in)
+ * - PubSubClient by Nick O'Leary
+ * - ArduinoJson by Benoit Blanchon
+ * - SHT1x by Practical Arduino
  */
 
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+#include <HTTPUpdate.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <SHT1x-ESP.h>
+
+// Firmware version
+#define FIRMWARE_VERSION "1.0.0"
 
 // ===========================
 // TLS CERTIFICATE
@@ -759,13 +771,15 @@ String dataTopic;
 String statusTopic;
 String commandTopic;
 unsigned long lastPublish = 0;
+bool otaInProgress = false;
 
 void setup() {
   Serial.begin(115200);
   delay(2000);
   
   Serial.println("\\n\\n=================================");
-  Serial.println("ESP32-S3 BMS Node with SHT10");
+  Serial.println("ESP32-S3 BMS Node with OTA");
+  Serial.printf("Firmware Version: %s\\n", FIRMWARE_VERSION);
   Serial.println("=================================\\n");
   
   // Initialize topics
@@ -783,7 +797,7 @@ void setup() {
   espClient.setInsecure(); // For IP address connections
   mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
   mqttClient.setCallback(mqttCallback);
-  mqttClient.setBufferSize(256);
+  mqttClient.setBufferSize(512); // Larger buffer for OTA commands
   
   connectMQTT();
   publishStatus("online");
@@ -792,15 +806,17 @@ void setup() {
 }
 
 void loop() {
-  if (!mqttClient.connected()) {
-    connectMQTT();
-  }
-  mqttClient.loop();
-  
-  unsigned long now = millis();
-  if (now - lastPublish >= PUBLISH_INTERVAL) {
-    lastPublish = now;
-    publishSensorData();
+  if (!otaInProgress) {
+    if (!mqttClient.connected()) {
+      connectMQTT();
+    }
+    mqttClient.loop();
+    
+    unsigned long now = millis();
+    if (now - lastPublish >= PUBLISH_INTERVAL) {
+      lastPublish = now;
+      publishSensorData();
+    }
   }
   
   delay(100);
@@ -856,12 +872,92 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
   Serial.println(message);
   
-  StaticJsonDocument<256> doc;
+  StaticJsonDocument<512> doc;
   if (deserializeJson(doc, message) == DeserializationError::Ok) {
     const char* cmd = doc["command"];
-    if (cmd && strcmp(cmd, "read") == 0) {
+    
+    if (cmd && strcmp(cmd, "ota_update") == 0) {
+      const char* firmwareUrl = doc["firmware_url"];
+      if (firmwareUrl) {
+        performOTAUpdate(firmwareUrl);
+      }
+    } else if (cmd && strcmp(cmd, "read") == 0) {
       publishSensorData();
+    } else if (cmd && strcmp(cmd, "version") == 0) {
+      publishVersion();
     }
+  }
+}
+
+void performOTAUpdate(const char* url) {
+  otaInProgress = true;
+  
+  Serial.println("\\n=================================");
+  Serial.println("Starting OTA Update");
+  Serial.println("=================================");
+  Serial.print("Firmware URL: ");
+  Serial.println(url);
+  
+  // Publish status
+  StaticJsonDocument<128> doc;
+  doc["node_id"] = NODE_ID;
+  doc["status"] = "updating";
+  doc["message"] = "OTA update in progress";
+  
+  String payload;
+  serializeJson(doc, payload);
+  mqttClient.publish(statusTopic.c_str(), payload.c_str(), true);
+  
+  // Perform OTA update
+  WiFiClient client;
+  httpUpdate.setLedPin(LED_BUILTIN, LOW);
+  
+  httpUpdate.onStart([]() {
+    Serial.println("OTA Update started");
+  });
+  
+  httpUpdate.onEnd([]() {
+    Serial.println("\\nOTA Update finished!");
+  });
+  
+  httpUpdate.onProgress([](int current, int total) {
+    Serial.printf("Progress: %d%%\\r", (current * 100) / total);
+    Serial.println();
+  });
+  
+  httpUpdate.onError([](int error) {
+    Serial.printf("OTA Error[%d]: ", error);
+    Serial.println(httpUpdate.getLastErrorString().c_str());
+  });
+  
+  t_httpUpdate_return ret = httpUpdate.update(client, url);
+  
+  switch (ret) {
+    case HTTP_UPDATE_FAILED:
+      Serial.printf("OTA Update failed Error (%d): %s\\n", 
+        httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+      
+      // Publish failure status
+      doc.clear();
+      doc["node_id"] = NODE_ID;
+      doc["status"] = "online";
+      doc["message"] = "OTA update failed";
+      serializeJson(doc, payload);
+      mqttClient.publish(statusTopic.c_str(), payload.c_str(), true);
+      
+      otaInProgress = false;
+      break;
+      
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial.println("No updates available");
+      otaInProgress = false;
+      break;
+      
+    case HTTP_UPDATE_OK:
+      Serial.println("Update successful! Rebooting...");
+      delay(1000);
+      ESP.restart();
+      break;
   }
 }
 
@@ -884,6 +980,7 @@ void publishSensorData() {
   doc["temperature"] = round(temperature * 100) / 100.0;
   doc["humidity"] = round(humidity * 100) / 100.0;
   doc["rssi"] = WiFi.RSSI();
+  doc["firmware_version"] = FIRMWARE_VERSION;
   
   String payload;
   serializeJson(doc, payload);
@@ -900,10 +997,24 @@ void publishStatus(const char* status) {
   doc["node_id"] = NODE_ID;
   doc["status"] = status;
   doc["ip"] = WiFi.localIP().toString();
+  doc["firmware_version"] = FIRMWARE_VERSION;
   
   String payload;
   serializeJson(doc, payload);
   mqttClient.publish(statusTopic.c_str(), payload.c_str(), true);
+}
+
+void publishVersion() {
+  StaticJsonDocument<128> doc;
+  doc["node_id"] = NODE_ID;
+  doc["firmware_version"] = FIRMWARE_VERSION;
+  doc["uptime"] = millis() / 1000;
+  
+  String payload;
+  serializeJson(doc, payload);
+  mqttClient.publish(statusTopic.c_str(), payload.c_str());
+  
+  Serial.printf("Published version: %s\\n", FIRMWARE_VERSION);
 }
 `;
 }
