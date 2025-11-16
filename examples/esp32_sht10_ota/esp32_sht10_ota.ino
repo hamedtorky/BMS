@@ -20,7 +20,7 @@
 #include <SHT1x-ESP.h>
 
 // Firmware version
-#define FIRMWARE_VERSION "1.1.0"
+#define FIRMWARE_VERSION "1.1.1"
 
 // ===========================
 // TLS CERTIFICATE
@@ -225,7 +225,7 @@ void performOTAUpdate(const char* url) {
   });
   
   httpUpdate.onProgress([](int current, int total) {
-    Serial.printf("Progress: %d%%\r", (current * 100) / total);
+    Serial.println("Progress: %d%%\r", (current * 100) / total);
   });
   
   httpUpdate.onError([](int error) {
