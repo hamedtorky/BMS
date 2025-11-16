@@ -904,7 +904,8 @@ void publishStatus(const char* status) {
   String payload;
   serializeJson(doc, payload);
   mqttClient.publish(statusTopic.c_str(), payload.c_str(), true);
-}`;
+}
+`;
 }
 
 // Firmware Management
