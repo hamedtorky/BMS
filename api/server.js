@@ -9,6 +9,22 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 
+const { execSync } = require('child_process');
+
+// Helper function to add MQTT user
+function addMqttUser(username, password) {
+  try {
+    const passwdFile = '/app/mosquitto-passwd/passwd';
+    const command = `mosquitto_passwd -b ${passwdFile} ${username} ${password}`;
+    execSync(command, { stdio: 'inherit' });
+    console.log(`MQTT user added: ${username}`);
+    return true;
+  } catch (error) {
+    console.error('Error adding MQTT user:', error.message);
+    return false;
+  }
+}
+
 // Configure multer for firmware uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -219,6 +235,8 @@ app.post('/api/nodes', authenticateToken, async (req, res) => {
       [node_id, name, address, description || '', mqttUsername, mqttPassword]
     );
 
+    // Add MQTT user to Mosquitto
+    addMqttUser(mqttUsername, mqttPassword);
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error creating node:', error);

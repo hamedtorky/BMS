@@ -57,6 +57,7 @@ services:
     volumes:
       - ./mosquitto/certs:/app/certs:ro
       - ./firmware:/app/firmware
+      - ./mosquitto/config:/app/mosquitto-passwd
     restart: unless-stopped
     networks:
       - bms-network
