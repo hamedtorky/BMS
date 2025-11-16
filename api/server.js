@@ -7,6 +7,33 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
+
+// Configure multer for firmware uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const firmwareDir = path.join(__dirname, 'firmware');
+    if (!fs.existsSync(firmwareDir)) {
+      fs.mkdirSync(firmwareDir, { recursive: true });
+    }
+    cb(null, firmwareDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `firmware-${Date.now()}.bin`);
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    if (file.originalname.endsWith('.bin')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only .bin files are allowed'));
+    }
+  }
+});
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -423,6 +450,138 @@ app.get('/api/public/sensors/:nodeId', async (req, res) => {
   } catch (error) {
     console.error('Error fetching sensor data:', error);
     res.status(500).json({ error: 'Failed to fetch sensor data' });
+  }
+});
+
+// OTA Update Endpoints
+
+// Upload firmware file
+app.post('/api/firmware/upload', authenticateToken, upload.single('firmware'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No firmware file uploaded' });
+    }
+
+    const firmwareInfo = {
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      size: req.file.size,
+      uploadedAt: new Date().toISOString(),
+      path: `/api/firmware/download/${req.file.filename}`
+    };
+
+    res.json({
+      message: 'Firmware uploaded successfully',
+      firmware: firmwareInfo
+    });
+  } catch (error) {
+    console.error('Error uploading firmware:', error);
+    res.status(500).json({ error: 'Failed to upload firmware' });
+  }
+});
+
+// List available firmware files
+app.get('/api/firmware/list', authenticateToken, (req, res) => {
+  try {
+    const firmwareDir = path.join(__dirname, 'firmware');
+    
+    if (!fs.existsSync(firmwareDir)) {
+      return res.json({ firmware: [] });
+    }
+
+    const files = fs.readdirSync(firmwareDir)
+      .filter(file => file.endsWith('.bin'))
+      .map(file => {
+        const stats = fs.statSync(path.join(firmwareDir, file));
+        return {
+          filename: file,
+          size: stats.size,
+          uploadedAt: stats.mtime.toISOString(),
+          path: `/api/firmware/download/${file}`
+        };
+      })
+      .sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+
+    res.json({ firmware: files });
+  } catch (error) {
+    console.error('Error listing firmware:', error);
+    res.status(500).json({ error: 'Failed to list firmware' });
+  }
+});
+
+// Download firmware file (for ESP32 OTA)
+app.get('/api/firmware/download/:filename', (req, res) => {
+  try {
+    const { filename } = req.params;
+    const firmwarePath = path.join(__dirname, 'firmware', filename);
+
+    if (!fs.existsSync(firmwarePath) || !filename.endsWith('.bin')) {
+      return res.status(404).json({ error: 'Firmware not found' });
+    }
+
+    res.download(firmwarePath);
+  } catch (error) {
+    console.error('Error downloading firmware:', error);
+    res.status(500).json({ error: 'Failed to download firmware' });
+  }
+});
+
+// Trigger OTA update on a node
+app.post('/api/nodes/:nodeId/ota-update', authenticateToken, async (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    const { firmwareUrl } = req.body;
+
+    if (!firmwareUrl) {
+      return res.status(400).json({ error: 'Firmware URL is required' });
+    }
+
+    // Verify node exists
+    const nodeResult = await pool.query(
+      'SELECT node_id FROM nodes WHERE node_id = $1',
+      [nodeId]
+    );
+
+    if (nodeResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Node not found' });
+    }
+
+    // Send OTA command via MQTT
+    const topic = `bms/node/${nodeId}/command`;
+    const command = {
+      command: 'ota_update',
+      firmware_url: firmwareUrl,
+      timestamp: new Date().toISOString()
+    };
+
+    mqttClient.publish(topic, JSON.stringify(command), { qos: 1 });
+
+    res.json({
+      message: 'OTA update command sent',
+      nodeId: nodeId,
+      firmwareUrl: firmwareUrl
+    });
+  } catch (error) {
+    console.error('Error triggering OTA update:', error);
+    res.status(500).json({ error: 'Failed to trigger OTA update' });
+  }
+});
+
+// Delete firmware file
+app.delete('/api/firmware/:filename', authenticateToken, (req, res) => {
+  try {
+    const { filename } = req.params;
+    const firmwarePath = path.join(__dirname, 'firmware', filename);
+
+    if (!fs.existsSync(firmwarePath) || !filename.endsWith('.bin')) {
+      return res.status(404).json({ error: 'Firmware not found' });
+    }
+
+    fs.unlinkSync(firmwarePath);
+    res.json({ message: 'Firmware deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting firmware:', error);
+    res.status(500).json({ error: 'Failed to delete firmware' });
   }
 });
 
