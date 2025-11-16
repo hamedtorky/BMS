@@ -225,7 +225,8 @@ void performOTAUpdate(const char* url) {
   });
   
   httpUpdate.onProgress([](int current, int total) {
-    Serial.println("Progress: %d%%\r", (current * 100) / total);
+    Serial.printf("Progress: %d%%\r", (current * 100) / total);
+    Serial.println();
   });
   
   httpUpdate.onError([](int error) {
