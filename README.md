@@ -21,6 +21,7 @@ A complete IoT-based Building Management System for monitoring environmental sen
 ### 📊 Web Dashboard
 - Node management interface
 - Live sensor monitoring with auto-refresh
+- Real-time charts (temperature & humidity history)
 - Historical data viewing
 - Responsive design
 
@@ -29,6 +30,13 @@ A complete IoT-based Building Management System for monitoring environmental sen
 - **Public API** for sensor data (no auth required)
 - WebSocket support for real-time updates
 - JSON-based data exchange
+
+### 🔄 OTA Firmware Updates
+- **Remote firmware updates** for ESP32 nodes
+- Web-based firmware upload & management
+- MQTT-triggered OTA updates
+- Progress monitoring & status tracking
+- No physical access needed after initial setup
 
 ### 🚀 Easy Deployment
 - One-command setup script
@@ -101,6 +109,17 @@ curl http://<SERVER_IP>:3000/api/public/sensors/node_1
 
 ## Documentation
 
+- **[QUICKSTART_OTA.md](QUICKSTART_OTA.md)** - 5-minute OTA update guide
+  - Quick setup for remote firmware updates
+  - Step-by-step instructions
+  - Troubleshooting tips
+
+- **[OTA_GUIDE.md](OTA_GUIDE.md)** - Complete OTA documentation
+  - Detailed OTA setup & workflows
+  - Building firmware binaries
+  - Best practices & security
+  - API reference
+
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete deployment guide
   - Manual setup instructions
   - Troubleshooting
@@ -109,6 +128,7 @@ curl http://<SERVER_IP>:3000/api/public/sensors/node_1
   - Backup procedures
 
 - **[examples/](examples/)** - ESP32 example sketches
+  - OTA version (with remote update support)
   - TLS version
   - Simple version (no TLS)
   - SHT10 sensor integration
