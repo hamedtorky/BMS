@@ -515,3 +515,159 @@ main {
     overflow-y: auto;
     white-space: pre;
 }
+
+/* Firmware Tab */
+.upload-area {
+    background: white;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.upload-area h3 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+}
+
+.upload-area input[type="file"] {
+    display: block;
+    margin-bottom: 15px;
+    padding: 10px;
+    border: 2px dashed #ddd;
+    border-radius: 4px;
+    width: 100%;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 20px;
+    background: #ecf0f1;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 15px 0;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #3498db, #2ecc71);
+    transition: width 0.3s;
+    width: 0%;
+}
+
+#upload-status {
+    text-align: center;
+    color: #666;
+    font-size: 14px;
+}
+
+.firmware-list {
+    display: grid;
+    gap: 15px;
+}
+
+.firmware-item {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.firmware-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.firmware-info {
+    flex: 1;
+}
+
+.firmware-info h4 {
+    color: #2c3e50;
+    margin-bottom: 8px;
+    font-size: 16px;
+}
+
+.firmware-meta {
+    color: #666;
+    font-size: 13px;
+}
+
+.firmware-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-ota {
+    background: #9b59b6;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.3s;
+}
+
+.btn-ota:hover {
+    background: #8e44ad;
+}
+
+.btn-download {
+    background: #16a085;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.3s;
+}
+
+.btn-download:hover {
+    background: #138f7a;
+}
+
+.firmware-select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-bottom: 15px;
+}
+
+.status-message {
+    padding: 15px;
+    margin-top: 15px;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.status-message.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.status-message.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.status-message.info {
+    background: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+}
+
+.node-card .btn-ota {
+    flex: 1;
+    padding: 8px;
+    font-size: 12px;
+}

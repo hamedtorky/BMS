@@ -156,6 +156,7 @@ function createNodeCard(node) {
         </div>
         <div class="node-actions">
             <button class="btn-view" onclick="viewNodeDetails('${node.node_id}')">View</button>
+            <button class="btn-ota" onclick="openOtaModalForNode('${node.node_id}', '${node.name}')">OTA</button>
             <button class="btn-edit" onclick="editNode('${node.node_id}')">Edit</button>
             <button class="btn-delete" onclick="deleteNode('${node.node_id}')">Delete</button>
         </div>
@@ -360,6 +361,9 @@ function switchTab(tabName) {
         if (autoRefreshCheckbox.checked) {
             startAutoRefresh();
         }
+    } else if (tabName === 'firmware') {
+        loadFirmwareList();
+        stopAutoRefresh();
     } else {
         stopAutoRefresh();
     }
@@ -902,3 +906,335 @@ void publishStatus(const char* status) {
   mqttClient.publish(statusTopic.c_str(), payload.c_str(), true);
 }`;
 }
+
+// Firmware Management
+const uploadFirmwareBtn = document.getElementById('upload-firmware-btn');
+const refreshFirmwareBtn = document.getElementById('refresh-firmware-btn');
+const firmwareUploadArea = document.getElementById('firmware-upload');
+const firmwareFileInput = document.getElementById('firmware-file');
+const doUploadBtn = document.getElementById('do-upload-btn');
+const cancelUploadBtn = document.getElementById('cancel-upload-btn');
+const uploadProgress = document.getElementById('upload-progress');
+const uploadProgressBar = document.getElementById('upload-progress-bar');
+const uploadStatus = document.getElementById('upload-status');
+const firmwareList = document.getElementById('firmware-list');
+const otaModal = document.getElementById('ota-modal');
+const closeOta = document.getElementById('close-ota');
+const cancelOtaBtn = document.getElementById('cancel-ota-btn');
+const startOtaBtn = document.getElementById('start-ota-btn');
+const otaNodeName = document.getElementById('ota-node-name');
+const otaFirmwareSelect = document.getElementById('ota-firmware-select');
+const otaStatus = document.getElementById('ota-status');
+let currentOtaNodeId = null;
+
+uploadFirmwareBtn.addEventListener('click', () => {
+    firmwareUploadArea.classList.toggle('hidden');
+});
+
+refreshFirmwareBtn.addEventListener('click', loadFirmwareList);
+cancelUploadBtn.addEventListener('click', () => {
+    firmwareUploadArea.classList.add('hidden');
+    firmwareFileInput.value = '';
+    uploadProgress.classList.add('hidden');
+});
+
+doUploadBtn.addEventListener('click', uploadFirmware);
+closeOta.addEventListener('click', closeOtaModal);
+cancelOtaBtn.addEventListener('click', closeOtaModal);
+startOtaBtn.addEventListener('click', startOtaUpdate);
+
+async function uploadFirmware() {
+    const file = firmwareFileInput.files[0];
+    if (!file) {
+        alert('Please select a firmware file');
+        return;
+    }
+
+    if (!file.name.endsWith('.bin')) {
+        alert('Please select a .bin file');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('firmware', file);
+
+    try {
+        doUploadBtn.disabled = true;
+        uploadProgress.classList.remove('hidden');
+        uploadStatus.textContent = 'Uploading...';
+        uploadProgressBar.style.width = '0%';
+
+        const xhr = new XMLHttpRequest();
+        
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+                const percent = (e.loaded / e.total) * 100;
+                uploadProgressBar.style.width = percent + '%';
+                uploadStatus.textContent = `Uploading... ${Math.round(percent)}%`;
+            }
+        });
+
+        xhr.addEventListener('load', () => {
+            if (xhr.status === 200) {
+                const response = JSON.parse(xhr.responseText);
+                uploadStatus.textContent = 'Upload complete!';
+                uploadProgressBar.style.width = '100%';
+                
+                setTimeout(() => {
+                    firmwareUploadArea.classList.add('hidden');
+                    firmwareFileInput.value = '';
+                    uploadProgress.classList.add('hidden');
+                    doUploadBtn.disabled = false;
+                    loadFirmwareList();
+                }, 1500);
+            } else {
+                throw new Error('Upload failed');
+            }
+        });
+
+        xhr.addEventListener('error', () => {
+            uploadStatus.textContent = 'Upload failed!';
+            doUploadBtn.disabled = false;
+        });
+
+        xhr.open('POST', `${API_BASE}/firmware/upload`);
+        xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
+        xhr.send(formData);
+
+    } catch (error) {
+        console.error('Upload error:', error);
+        uploadStatus.textContent = 'Upload failed!';
+        doUploadBtn.disabled = false;
+    }
+}
+
+async function loadFirmwareList() {
+    try {
+        const response = await fetch(`${API_BASE}/firmware/list`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to load firmware list');
+        }
+
+        const data = await response.json();
+        displayFirmwareList(data.firmware);
+    } catch (error) {
+        console.error('Error loading firmware:', error);
+    }
+}
+
+function displayFirmwareList(firmware) {
+    firmwareList.innerHTML = '';
+
+    if (firmware.length === 0) {
+        firmwareList.innerHTML = '<p style="text-align: center; color: #666; padding: 40px;">No firmware files uploaded yet.</p>';
+        return;
+    }
+
+    firmware.forEach(fw => {
+        const item = document.createElement('div');
+        item.className = 'firmware-item';
+
+        const uploadedDate = new Date(fw.uploadedAt).toLocaleString();
+        const fileSize = (fw.size / 1024).toFixed(2) + ' KB';
+
+        item.innerHTML = `
+            <div class="firmware-info">
+                <h4>${fw.filename}</h4>
+                <div class="firmware-meta">
+                    <span>Size: ${fileSize}</span> | 
+                    <span>Uploaded: ${uploadedDate}</span>
+                </div>
+            </div>
+            <div class="firmware-actions">
+                <button class="btn-ota" onclick="openOtaModal('${fw.filename}')">Update Node</button>
+                <button class="btn-download" onclick="downloadFirmware('${fw.filename}')">Download</button>
+                <button class="btn-delete" onclick="deleteFirmware('${fw.filename}')">Delete</button>
+            </div>
+        `;
+
+        firmwareList.appendChild(item);
+    });
+}
+
+function openOtaModal(firmwareFilename) {
+    loadNodesForOta(firmwareFilename);
+    otaModal.classList.remove('hidden');
+    otaStatus.classList.add('hidden');
+}
+
+function closeOtaModal() {
+    otaModal.classList.add('hidden');
+    currentOtaNodeId = null;
+    otaStatus.classList.add('hidden');
+}
+
+async function loadNodesForOta(firmwareFilename) {
+    try {
+        const response = await fetch(`${API_BASE}/nodes`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to load nodes');
+        }
+
+        const nodes = await response.json();
+        populateNodeSelect(nodes, firmwareFilename);
+    } catch (error) {
+        console.error('Error loading nodes:', error);
+    }
+}
+
+function populateNodeSelect(nodes, firmwareFilename) {
+    otaFirmwareSelect.innerHTML = '';
+    
+    if (nodes.length === 0) {
+        otaFirmwareSelect.innerHTML = '<option value="">No nodes available</option>';
+        startOtaBtn.disabled = true;
+        return;
+    }
+
+    otaFirmwareSelect.innerHTML = '<option value="">Select a node...</option>';
+    
+    nodes.forEach(node => {
+        const option = document.createElement('option');
+        option.value = node.node_id;
+        option.textContent = `${node.name} (${node.node_id}) - ${node.status}`;
+        option.dataset.filename = firmwareFilename;
+        otaFirmwareSelect.appendChild(option);
+    });
+
+    startOtaBtn.disabled = false;
+}
+
+async function startOtaUpdate() {
+    let nodeId, firmwareFilename;
+    
+    // Check if we're in firmware-first mode (dataset.filename) or node-first mode (currentOtaNodeId)
+    if (currentOtaNodeId) {
+        // Node-first mode: node selected, firmware in dropdown
+        nodeId = currentOtaNodeId;
+        firmwareFilename = otaFirmwareSelect.value;
+        
+        if (!firmwareFilename) {
+            alert('Please select a firmware');
+            return;
+        }
+    } else {
+        // Firmware-first mode: firmware selected, node in dropdown
+        nodeId = otaFirmwareSelect.value;
+        const selectedOption = otaFirmwareSelect.options[otaFirmwareSelect.selectedIndex];
+        firmwareFilename = selectedOption.dataset.filename;
+        
+        if (!nodeId) {
+            alert('Please select a node');
+            return;
+        }
+    }
+
+    const firmwareUrl = `${window.location.origin}/api/firmware/download/${firmwareFilename}`;
+
+    try {
+        startOtaBtn.disabled = true;
+        otaStatus.textContent = 'Sending OTA update command...';
+        otaStatus.className = 'status-message info';
+        otaStatus.classList.remove('hidden');
+
+        const response = await fetch(`${API_BASE}/nodes/${nodeId}/ota-update`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ firmwareUrl })
+        });
+
+        if (!response.ok) {
+            throw new Error('OTA update command failed');
+        }
+
+        otaStatus.textContent = 'OTA update command sent successfully! Check node status in Monitor tab.';
+        otaStatus.className = 'status-message success';
+
+        setTimeout(() => {
+            closeOtaModal();
+        }, 3000);
+
+    } catch (error) {
+        console.error('OTA update error:', error);
+        otaStatus.textContent = 'Failed to send OTA update command: ' + error.message;
+        otaStatus.className = 'status-message error';
+        startOtaBtn.disabled = false;
+    }
+}
+
+function downloadFirmware(filename) {
+    const url = `${API_BASE}/firmware/download/${filename}`;
+    window.open(url, '_blank');
+}
+
+async function deleteFirmware(filename) {
+    if (!confirm(`Are you sure you want to delete ${filename}?`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/firmware/${filename}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to delete firmware');
+        }
+
+        loadFirmwareList();
+    } catch (error) {
+        console.error('Delete error:', error);
+        alert('Failed to delete firmware');
+    }
+}
+
+async function openOtaModalForNode(nodeId, nodeName) {
+    currentOtaNodeId = nodeId;
+    otaNodeName.textContent = nodeName;
+    
+    try {
+        const response = await fetch(`${API_BASE}/firmware/list`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to load firmware list');
+        }
+
+        const data = await response.json();
+        
+        otaFirmwareSelect.innerHTML = '';
+        
+        if (data.firmware.length === 0) {
+            otaFirmwareSelect.innerHTML = '<option value="">No firmware available - upload one first</option>';
+            startOtaBtn.disabled = true;
+        } else {
+            otaFirmwareSelect.innerHTML = '<option value="">Select firmware...</option>';
+            data.firmware.forEach(fw => {
+                const option = document.createElement('option');
+                option.value = fw.filename;
+                option.textContent = `${fw.filename} (${(fw.size / 1024).toFixed(2)} KB)`;
+                otaFirmwareSelect.appendChild(option);
+            });
+            startOtaBtn.disabled = false;
+        }
+
+        otaModal.classList.remove('hidden');
+        otaStatus.classList.add('hidden');
+
+    } catch (error) {
+        console.error('Error loading firmware:', error);
+        alert('Failed to load firmware list');
+    }
+}
+

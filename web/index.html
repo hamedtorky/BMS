@@ -36,6 +36,7 @@
                 <div class="tabs">
                     <button class="tab-btn active" data-tab="nodes">Nodes</button>
                     <button class="tab-btn" data-tab="monitor">Monitor</button>
+                    <button class="tab-btn" data-tab="firmware">Firmware</button>
                 </div>
 
                 <div id="nodes-tab" class="tab-content active">
@@ -69,6 +70,26 @@
                         </div>
                     </div>
                     <div id="monitor-container" class="monitor-grid"></div>
+                </div>
+
+                <div id="firmware-tab" class="tab-content">
+                    <div class="toolbar">
+                        <button id="upload-firmware-btn" class="btn-primary">+ Upload Firmware</button>
+                        <button id="refresh-firmware-btn" class="btn-secondary">Refresh</button>
+                    </div>
+                    <div id="firmware-upload" class="upload-area hidden">
+                        <h3>Upload Firmware (.bin file)</h3>
+                        <input type="file" id="firmware-file" accept=".bin" />
+                        <button id="do-upload-btn" class="btn-primary">Upload</button>
+                        <button id="cancel-upload-btn" class="btn-secondary">Cancel</button>
+                        <div id="upload-progress" class="hidden">
+                            <div class="progress-bar">
+                                <div id="upload-progress-bar" class="progress-fill"></div>
+                            </div>
+                            <div id="upload-status"></div>
+                        </div>
+                    </div>
+                    <div id="firmware-list" class="firmware-list"></div>
                 </div>
             </main>
         </div>
@@ -128,6 +149,28 @@
                     <button class="close-btn" id="close-details">&times;</button>
                 </div>
                 <div id="node-details-content"></div>
+            </div>
+        </div>
+
+        <!-- OTA Update Modal -->
+        <div id="ota-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>OTA Firmware Update</h2>
+                    <button class="close-btn" id="close-ota">&times;</button>
+                </div>
+                <div id="ota-modal-content">
+                    <p>Select firmware to update <strong id="ota-node-name"></strong>:</p>
+                    <div class="form-group">
+                        <label for="ota-firmware-select">Firmware:</label>
+                        <select id="ota-firmware-select" class="firmware-select"></select>
+                    </div>
+                    <div class="modal-actions">
+                        <button id="cancel-ota-btn" class="btn-secondary">Cancel</button>
+                        <button id="start-ota-btn" class="btn-primary">Start Update</button>
+                    </div>
+                    <div id="ota-status" class="status-message hidden"></div>
+                </div>
             </div>
         </div>
     </div>
