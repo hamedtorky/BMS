@@ -27,7 +27,7 @@ Web Interface → Trigger update → Server sends MQTT command
 **IMPORTANT:** The first time, you must physically connect the ESP32 to upload OTA-capable firmware.
 
 1. Open Arduino IDE
-2. Load the OTA sketch: `examples/esp32_sht10/esp32_sht10_ota.ino`
+2. Load the OTA sketch: `examples/esp32_sht10_ota/esp32_sht10_ota.ino`
 3. Update configuration:
    ```cpp
    const char* WIFI_SSID = "YOUR_WIFI";

@@ -14,7 +14,7 @@ Get your ESP32 nodes updated remotely in 5 minutes!
 
 1. **Open the sketch**:
    ```
-   examples/esp32_sht10/esp32_sht10_ota.ino
+   examples/esp32_sht10_ota/esp32_sht10_ota.ino
    ```
 
 2. **Configure WiFi and MQTT**:
